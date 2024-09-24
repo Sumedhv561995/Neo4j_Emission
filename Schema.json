@@ -1,0 +1,241 @@
+{
+  "neo4j": {
+    "uri": "neo4j://43.204.176.46:7687",
+    "username": "neo4j",
+    "password": "neo@1234"
+  },
+  "s3": {
+    "bucket_name": "emission-ne04j",
+    "sap_hierarchy_file": "NorthStar_Platform_SAP_Asset_Hierarchy_with_Realistic_Descriptions.xlsx",
+    "operating_parameters_file": "modified_file.xlsx"
+  },
+  "relationships": [
+    {
+      "sheet_name": "IFLOT",
+      "join_column": "Functional_Location_Code",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Functional_Location",
+      "relationship_type": "HAS_EQUIPMENT"
+    },
+    {
+      "sheet_name": "EQUI",
+      "join_column": "Equipment_Number",
+      "target_sheet_name": "STPO",
+      "target_join_column": "Equipment_Number",
+      "relationship_type": "HAS_MATERIAL"
+    },
+    {
+      "sheet_name": "MARA",
+      "join_column": "Material_Number",
+      "target_sheet_name": "STPO",
+      "target_join_column": "Material_Number",
+      "relationship_type": "HAS_MATERIAL"
+    },
+    {
+      "sheet_name": "QMEL",
+      "join_column": "Equipment_Number",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Equipment_Number",
+      "relationship_type": "HAS_NOTIFICATION"
+    },
+    {
+      "sheet_name": "EQUI",
+      "join_column": "Equipment_Number",
+      "target_sheet_name": "AUFK",
+      "target_join_column": "Equipment_Number",
+      "relationship_type": "HAS_WORK_ORDER"
+    },
+    {
+      "sheet_name": "AUFK",
+      "join_column": "Work_Order_Number",
+      "target_sheet_name": "AFVC",
+      "target_join_column": "Work_Order_Number",
+      "relationship_type": "HAS_WORK_ORDER"
+    },
+    {
+      "sheet_name": "Booster_Compressor_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Booster_Compressor_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Booster_Compressor_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Booster_Compressor_D",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "VRU_Compressor_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "VRU_Compressor_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "VRU_Compressor_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Gas_Turbine_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Gas_Turbine_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Gas_Turbine_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Gas_Turbine_D",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Boiler_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Boiler_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Boiler_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Heater_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Heater_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Heater_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Pump_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Pump_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Pump_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Pump_D",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Separator_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Separator_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Storage_Tank_A",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Storage_Tank_B",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    },
+    {
+      "sheet_name": "Storage_Tank_C",
+      "join_column": "Equipment_Name",
+      "target_sheet_name": "EQUI",
+      "target_join_column": "Description",
+      "relationship_type": "HAS_PARAMETER"
+    }
+  ],
+  "northstar_platform": {
+    "name": "Northstar_Platform"
+  }
+}
