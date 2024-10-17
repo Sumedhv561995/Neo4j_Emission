@@ -7,7 +7,7 @@
   "s3": {
     "bucket_name": "emission-ne04j",
     "sap_hierarchy_file": "NorthStar_Platform_SAP_Asset_Hierarchy_with_Realistic_Descriptions.xlsx",
-    "operating_parameters_file": "NorthStar_Platform_Asset_Operating_Parameters_Last_(5)Year_Hourly.xlsx "
+    "operating_parameters_file": "NorthStar_Platform_Asset_Operating_Parameters_Last_(2)Year_Hourly.xlsx"
   },
   "relationships": [
     {
