@@ -5,7 +5,7 @@ import boto3
 from io import BytesIO
 
 # Load the configuration from config.json
-with open('config2.json') as f:
+with open('Schema.json') as f:
     config = json.load(f)
 
 # Neo4j connection settings
