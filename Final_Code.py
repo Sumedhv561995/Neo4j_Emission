@@ -5,7 +5,7 @@ import boto3
 from io import BytesIO
 
 # Load the configuration from config.json
-with open('Schema.json') as f:
+with open('config2.json') as f:
     config = json.load(f)
 
 # Neo4j connection settings
@@ -21,7 +21,6 @@ bucket_name = config['s3']['bucket_name']  # Fetch the bucket name from config f
 excel_file = config['s3']['sap_hierarchy_file']  # Fetch the file name for hierarchy from config
 additional_excel_file = config['s3']['operating_parameters_file']  # Fetch the file name for operating parameters
 
-
 # Read the file content from S3 as binary
 def read_file_from_s3(bucket, key):
     try:
@@ -30,7 +29,6 @@ def read_file_from_s3(bucket, key):
     except Exception as e:
         print(f"Error occurred: {e}")
         return None
-
 
 # Load the Excel files from S3
 file_content = read_file_from_s3(bucket_name, excel_file)
@@ -62,15 +60,10 @@ if file_content and file_content1:
         print("Northstar_Platform node ensured.")
     except Exception as e:
         print(f"Error creating Northstar_Platform node: {e}")
-
-
-    # Function to create a Cypher query for merging a node
     def create_node_query(sheet, header_row, row_data):
         labels = sheet.title  # Use the sheet name as the node label
         properties = {header_row[i]: row_data[i] for i in range(len(header_row)) if row_data[i]}
-        return {"query": f"MERGE (n:{labels} {{ {', '.join([f'{key}: $props.{key}' for key in properties.keys()])} }})",
-                "parameters": {"props": properties}}
-
+        return {"query": f"MERGE (n:{labels} {{ {', '.join([f'{key}: $props.{key}' for key in properties.keys()])} }})", "parameters": {"props": properties}}
 
     # Function to link IFLOT nodes to the Northstar_Platform using the Description column
     def link_iflot_to_northstar(description_value):
@@ -83,6 +76,100 @@ if file_content and file_content1:
             "parameters": {"description_value": description_value, "platform_name": northstar_platform_name}
         }
 
+    # Step 1: Process the SAP Hierarchy file and create nodes
+    for sheet_name in wb_hierarchy.sheetnames:
+        sheet = wb_hierarchy[sheet_name]
+        header_row = [cell.value for cell in sheet[1]]
+        node_data = []
+
+        # Collect data to create nodes
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            node_query = create_node_query(sheet, header_row, row)
+            print("Node_query: ",node_query)
+            node_data.append(node_query)
+
+        # Execute node creation queries in batch
+        for node_query in node_data:
+            try:
+                graph.run(node_query["query"], **node_query["parameters"])
+                print(f"Node for sheet '{sheet_name}' created/merged.")
+            except Exception as e:
+                print(f"Error creating node in sheet '{sheet_name}': {e}")
+
+            # Step 1.1: If sheet is IFLOT, link nodes to the Northstar_Platform using Description
+            if sheet_name == "IFLOT":
+                try:
+                    description_index = header_row.index("Description")  # Ensure Description column exists
+                except ValueError:
+                    print(f"Error: 'Description' column not found in sheet '{sheet_name}'.")
+                    continue
+
+                for row in sheet.iter_rows(min_row=2, values_only=True):
+                    description_value = row[description_index]
+                    if description_value:
+                        try:
+                            link_query = link_iflot_to_northstar(description_value)
+                            print("Link_query: ", link_query)
+                            graph.run(link_query["query"], **link_query["parameters"])
+                            print(f"IFLOT node with description '{description_value}' linked to Northstar_Platform.")
+                        except Exception as e:
+                            print(
+                                f"Error linking IFLOT node with description '{description_value}' to Northstar_Platform: {e}")
+
+    # Function to link parameter sheets to existing EQUI nodes dynamically
+    def link_parameters_to_existing_equi(sheet, header_row, row_data):
+        # Assuming the sheet name is the equipment name
+        equipment_name = sheet.title.strip()
+        timestamp = row_data[1]  # Assume the timestamp is in the first column
+        name_equipment = equipment_name.replace("_"," ")
+        # Ensure the equipment node already exists in Neo4j, if not, skip
+        equipment_query = {
+            "query": """
+                MATCH (e:EQUI {Description: $equipment_name})
+                RETURN e
+            """,
+            "parameters": {
+                "equipment_name": name_equipment
+            }
+        }
+
+        equipment_exists = graph.run(equipment_query["query"], **equipment_query["parameters"]).data()
+
+        # If the equipment node exists, proceed to create parameters and relationships
+        if equipment_exists:
+            print(f"Found existing equipment node for '{name_equipment}', proceeding to create parameter relationships.")
+
+            # Iterate through each parameter in the row (skipping the timestamp)
+            for i in range(2, len(header_row)):
+                parameter_name = header_row[i]
+                parameter_value = row_data[i]
+                equipment_node_name = name_equipment.replace(" ", "_")
+                parameter_node_name = parameter_name + "_" + equipment_node_name
+                if parameter_value is not None:
+                    parameter_query = {
+                        "query": """
+                            MATCH (e:EQUI {Description: $equipment_name})
+                            MERGE (p:Parameter {name: $parameter_name})
+                            ON CREATE SET p.timestamps = [$timestamp], p.values = [$parameter_value]
+                            ON MATCH SET p.timestamps = p.timestamps + $timestamp, p.values = p.values + $parameter_value
+                            MERGE (e)-[:HAS_PARAMETER]->(p)
+                        """,
+                        "parameters": {
+                            "equipment_name": name_equipment,
+                            "parameter_name": parameter_node_name,
+                            "parameter_value": parameter_value,
+                            "timestamp": timestamp
+                        }
+                    }
+
+                    # Execute the query to link the parameters to the existing EQUI node
+                    try:
+                        graph.run(parameter_query["query"], **parameter_query["parameters"])
+                        print(f"Parameter '{parameter_name}' for equipment '{equipment_name}' created/linked.")
+                    except Exception as e:
+                        print(f"Error creating parameter node for '{parameter_name}' on equipment '{equipment_name}': {e}")
+        else:
+            print(f"Equipment '{name_equipment}' does not exist in Neo4j. Skipping parameter creation for this equipment.")
 
     # Function to create and link parameters from the operating parameters file
     def create_parameter_nodes(sheet, header_row, row_data, equipment_name):
@@ -114,123 +201,27 @@ if file_content and file_content1:
         # Create parameter nodes and link them to the equipment node
         for i in range(2, len(header_row)):
             parameter_name = header_row[i]
+            equipment_node_name = equipment_name_cleaned.replace(" ","_")
+            parameter_node_name = parameter_name + "_" + equipment_node_name
             parameter_value = row_data[i]
             if parameter_value is not None:
                 parameter_query = {
-                    "query": """
-                                        MATCH (e:EQUI {Description: $equipment_name})
-                                        MERGE (p:Parameter {name: $parameter_name})
-                                        ON CREATE SET p.timestamps = [$timestamp], p.values = [$parameter_value]
-                                        ON MATCH SET p.timestamps = p.timestamps + $timestamp, p.values = p.values + $parameter_value
-                                        MERGE (e)-[:HAS_PARAMETER]->(p)
-                                    """,
+                    "query": f"""
+                            MATCH (e:EQUI {{Description: $equipment_name}})
+                            MERGE (p:Parameter {{name: $parameter_name}})
+                            ON CREATE SET p.timestamps = [$timestamp], p.values = [$parameter_value]
+                            ON MATCH SET p.timestamps = p.timestamps + $timestamp, p.values = p.values + $parameter_value
+                            MERGE (e)-[:HAS_PARAMETER]->(p)
+                        """,
                     "parameters": {
                         "equipment_name": equipment_name_cleaned,
-                        "parameter_name": parameter_name,
-                        "timestamp": timestamp,
-                        "parameter_value": parameter_value
+                        "parameter_name": parameter_node_name,
+                        "parameter_value": parameter_value,
+                        "timestamp": timestamp
                     }
                 }
                 parameter_queries.append(parameter_query)
         return parameter_queries
-
-
-    # Step 1: Process the SAP Hierarchy file and create nodes
-    for sheet_name in wb_hierarchy.sheetnames:
-        sheet = wb_hierarchy[sheet_name]
-        header_row = [cell.value for cell in sheet[1]]
-        node_data = []
-
-        # Collect data to create nodes
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            node_query = create_node_query(sheet, header_row, row)
-            node_data.append(node_query)
-
-        # Execute node creation queries in batch
-        for node_query in node_data:
-            try:
-                graph.run(node_query["query"], **node_query["parameters"])
-                print(f"Node for sheet '{sheet_name}' created/merged.")
-            except Exception as e:
-                print(f"Error creating node in sheet '{sheet_name}': {e}")
-
-            # Step 1.1: If sheet is IFLOT, link nodes to the Northstar_Platform using Description
-            if sheet_name == "IFLOT":
-                try:
-                    description_index = header_row.index("Description")  # Ensure Description column exists
-                except ValueError:
-                    print(f"Error: 'Description' column not found in sheet '{sheet_name}'.")
-                    continue
-
-                for row in sheet.iter_rows(min_row=2, values_only=True):
-                    description_value = row[description_index]
-                    if description_value:
-                        try:
-                            link_query = link_iflot_to_northstar(description_value)
-                            graph.run(link_query["query"], **link_query["parameters"])
-                            print(f"IFLOT node with description '{description_value}' linked to Northstar_Platform.")
-                        except Exception as e:
-                            print(
-                                f"Error linking IFLOT node with description '{description_value}' to Northstar_Platform: {e}")
-
-
-    # Function to link parameter sheets to existing EQUI nodes dynamically
-    def link_parameters_to_existing_equi(sheet, header_row, row_data):
-        # Assuming the sheet name is the equipment name
-        equipment_name = sheet.title.strip()
-        timestamp = row_data[1]  # Assume the timestamp is in the first column
-        name_equipment = equipment_name.replace("_", " ")
-        # Ensure the equipment node already exists in Neo4j, if not, skip
-        equipment_query = {
-            "query": """
-                MATCH (e:EQUI {Description: $equipment_name})
-                RETURN e
-            """,
-            "parameters": {
-                "equipment_name": name_equipment
-            }
-        }
-
-        equipment_exists = graph.run(equipment_query["query"], **equipment_query["parameters"]).data()
-
-        # If the equipment node exists, proceed to create parameters and relationships
-        if equipment_exists:
-            print(
-                f"Found existing equipment node for '{name_equipment}', proceeding to create parameter relationships.")
-
-            # Iterate through each parameter in the row (skipping the timestamp)
-            for i in range(2, len(header_row)):
-                parameter_name = header_row[i]
-                parameter_value = row_data[i]
-
-                if parameter_value is not None:
-                    parameter_query = {
-                        "query": """
-                                            MATCH (e:EQUI {Description: $equipment_name})
-                                            MERGE (p:Parameter {name: $parameter_name})
-                                            ON CREATE SET p.timestamps = [$timestamp], p.values = [$parameter_value]
-                                            ON MATCH SET p.timestamps = p.timestamps + $timestamp, p.values = p.values + $parameter_value
-                                            MERGE (e)-[:HAS_PARAMETER]->(p)
-                                        """,
-                        "parameters": {
-                            "equipment_name": name_equipment,
-                            "parameter_name": parameter_name,
-                            "timestamp": timestamp,
-                            "parameter_value": parameter_value
-                        }
-                    }
-
-                    # Execute the query to link the parameters to the existing EQUI node
-                    try:
-                        graph.run(parameter_query["query"], **parameter_query["parameters"])
-                        print(f"Parameter '{parameter_name}' for equipment '{equipment_name}' created/linked.")
-                    except Exception as e:
-                        print(
-                            f"Error creating parameter node for '{parameter_name}' on equipment '{equipment_name}': {e}")
-        else:
-            print(
-                f"Equipment '{name_equipment}' does not exist in Neo4j. Skipping parameter creation for this equipment.")
-
 
     # Step 2: Process the Operating Parameters file and create relationships
     for sheet_name in wb_operating_params.sheetnames:
@@ -262,7 +253,6 @@ if file_content and file_content1:
 
         print(f"\nProcessing relationship: {source_column} -> {target_column} as {rel_type}")
 
-
         # Check for the sheet in both workbooks
         def get_sheet(workbook_hierarchy, workbook_operating, sheet_name):
             try:
@@ -281,6 +271,7 @@ if file_content and file_content1:
         try:
             sheet = get_sheet(wb_hierarchy, wb_operating_params, sheet_name)
             target_sheet = get_sheet(wb_hierarchy, wb_operating_params, target_sheet_name)
+            print("Target Sheet: ",target_sheet)
         except KeyError as e:
             print(f"Error: Sheet not found - {e}")
             continue
@@ -288,7 +279,7 @@ if file_content and file_content1:
         # Get the header rows from the loaded sheets
         header_row = [cell.value for cell in sheet[1]]
         target_header_row = [cell.value for cell in target_sheet[1]]
-
+        print("Target Header Row: ",target_header_row)
         # Get the index of the join columns
         try:
             join_column_index = header_row.index(source_column)
@@ -298,6 +289,7 @@ if file_content and file_content1:
 
         try:
             target_join_column_index = target_header_row.index(target_column)
+            print("Target join column index: ",target_join_column_index)
         except ValueError:
             print(f"Error: Target join column '{target_column}' not found in sheet '{target_sheet_name}'.")
             continue
@@ -308,10 +300,10 @@ if file_content and file_content1:
         # Iterate through rows to find matching values in both sheets
         for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             join_column_value = row[join_column_index]
-            target_join_column_value = row[target_join_column_index]
-
             # Find the matching row in the target sheet
             for target_row in target_sheet.iter_rows(min_row=2, values_only=True):
+                target_join_column_value = target_row[target_join_column_index]
+                # print("Target join column value: ", target_join_column_value)
                 if target_row[target_join_column_index] == join_column_value:
                     relationship_data.append({
                         "query": f"""
@@ -328,6 +320,7 @@ if file_content and file_content1:
         # Execute relationship creation queries
         for rel_query in relationship_data:
             try:
+                print("Rel_query: ", rel_query)
                 graph.run(rel_query["query"], **rel_query["parameters"])
                 print(f"Relationship {rel_type} created between {sheet_name} and {target_sheet_name}.")
             except Exception as e:
